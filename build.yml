@@ -1,0 +1,81 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-autotools:
+    name: Linux (Ubuntu) — autotools
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y             build-essential libtool autotools-dev automake pkg-config bsdmainutils python3             libevent-dev libboost-system-dev libboost-filesystem-dev libboost-test-dev libboost-thread-dev             libminiupnpc-dev libzmq3-dev
+
+      - name: Configure
+        run: |
+          ./autogen.sh
+          ./configure --without-gui --disable-bench
+
+      - name: Build
+        run: make -j"$(nproc)"
+
+      - name: Unit tests
+        run: make -j"$(nproc)" check
+
+      - name: Show versions
+        run: |
+          src/bitcoind -version || true
+          src/bitcoin-cli -version || true
+
+      - name: Upload daemon artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: demos-linux-bin
+          path: |
+            src/bitcoind
+            src/bitcoin-cli
+            src/bitcoin-tx
+            src/bitcoin-util
+          if-no-files-found: ignore
+
+  macos-autotools:
+    name: macOS — autotools
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Homebrew)
+        run: |
+          brew update
+          brew install automake libtool pkg-config boost libevent zeromq python@3.12
+          echo "Using Python: $(python3 --version)"
+
+      - name: Configure
+        run: |
+          ./autogen.sh
+          ./configure --without-gui --disable-bench
+
+      - name: Build
+        run: make -j"$(sysctl -n hw.ncpu)"
+
+      - name: Unit tests
+        run: make -j"$(sysctl -n hw.ncpu)" check
+
+      - name: Upload daemon artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: demos-macos-bin
+          path: |
+            src/bitcoind
+            src/bitcoin-cli
+            src/bitcoin-tx
+            src/bitcoin-util
+          if-no-files-found: ignore
